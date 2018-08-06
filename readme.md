@@ -1,5 +1,5 @@
 # It's all Relative: Monocular 3D Human Pose Estimation from Weakly Supervised Data
-This repository recreates the experiments and plots from our BMVC 2018 paper. You can find the paper [here](https://arxiv.org/abs/1805.06880), along with additional data our our [project website](http://www.vision.caltech.edu/~mronchi/projects/RelativePose/).
+This repository recreates the experiments and plots from our BMVC 2018 paper. You can find the paper [here](https://arxiv.org/abs/1805.06880), along with additional data on our [project website](http://www.vision.caltech.edu/~mronchi/projects/RelativePose/).
 
 ### Overview
  - `run_model.py`   : Runs a pre-trained model on an input numpy array containing a 2D pose and predicts and visualizes the corresponding 3D pose.
