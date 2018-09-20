@@ -15,7 +15,7 @@ from src.data_formats.misc import DatasetMisc
 from src.model import LinearModel, weight_init
 
 from src.utils.pose_plotter import PosePlotter
-from src.data_formats.human36_config import pose_config
+from src.data_formats.human36_17k_config import pose_config
 
 
 def run_model(opt):

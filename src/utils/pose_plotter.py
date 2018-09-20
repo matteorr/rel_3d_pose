@@ -57,8 +57,12 @@ class PosePlotter():
             self.ax.set_xlim(self.x_start_2d, self.x_end_2d)
             self.ax.set_ylim(self.y_start_2d, self.y_end_2d)
         else:
-            max_x = np.max(pose_2d_x); min_x = np.min(pose_2d_x)
-            max_y = np.max(pose_2d_y); min_y = np.min(pose_2d_y)
+            # uses the keypoint visibility flags to select the max and min
+            # across the x and y dimensions for setting the plot axis limits
+            max_x = np.max(pose_2d_x[kpts_v.astype(np.bool)])
+            min_x = np.min(pose_2d_x[kpts_v.astype(np.bool)])
+            max_y = np.max(pose_2d_y[kpts_v.astype(np.bool)])
+            min_y = np.min(pose_2d_y[kpts_v.astype(np.bool)])
 
             w  = max_x - min_x
             h  = max_y - min_y

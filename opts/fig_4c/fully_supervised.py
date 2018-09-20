@@ -63,6 +63,9 @@ opt.test_noise_amount_2d  = 0
 # use 'mturk' to simulate noise amount observed in turkers for training data
 opt.rel_labels_noise_prob  = 0.
 
+# input dropout probability
+opt.in_dropout_p = 0.
+
 # data formatting
 opt.camera_coord_3d  = True
 opt.keep_root        = True

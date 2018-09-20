@@ -34,7 +34,7 @@ opt.lr               = 0.001
 opt.lr_decay         = 100000
 opt.lr_gamma         = 0.96
 opt.test_step        = 1 # run test every test_step train calls
-opt.save_ims         = False
+opt.save_ims         = True
 opt.job              = 8
 
 # actions to use
@@ -62,6 +62,9 @@ opt.test_noise_amount_2d  = 0
 # NOTE: this is hard coded to 0 for the TEST set
 # use 'mturk' to simulate noise amount observed in turkers for training data
 opt.rel_labels_noise_prob  = 0.
+
+# input dropout probability
+opt.in_dropout_p = 0.
 
 # data formatting
 opt.camera_coord_3d  = True

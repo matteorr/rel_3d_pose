@@ -235,13 +235,180 @@ HUMAN_36M_17K_LEFT_LIMBS = [['mid_hip', 'left_hip'],
             ['left_elbow', 'left_wrist']]
 
 ################################################################################
+# 19 keypoints
+################################################################################
+
+HUMAN_36M_19K_3D = \
+  ['head', 'chin', 'neck',
+   'right_shoulder', 'right_elbow', 'right_wrist',
+   'left_shoulder',  'left_elbow',  'left_wrist',
+   'mid_spine', 'mid_hip',
+   'right_hip', 'right_knee', 'right_ankle', 'right_foot_tip',
+   'left_hip',  'left_knee',  'left_ankle',  'left_foot_tip']
+
+HUMAN_36M_19K_2D = HUMAN_36M_19K_3D
+
+HUMAN_36M_19K_ROOT = 'mid_hip'
+
+HUMAN_36M_19K_SKELETON_3D = \
+    [['mid_hip', 'right_hip'],
+     ['right_hip', 'right_knee'],
+     ['right_knee', 'right_ankle'],
+     ['right_ankle', 'right_foot_tip'],
+     ['mid_hip', 'left_hip'],
+     ['left_hip', 'left_knee'],
+     ['left_knee', 'left_ankle'],
+     ['left_ankle', 'left_foot_tip'],
+     ['mid_hip', 'mid_spine'],
+     ['mid_spine', 'neck'],
+     ['neck', 'chin'],
+     ['chin', 'head'],
+     ['neck', 'left_shoulder'],
+     ['left_shoulder', 'left_elbow'],
+     ['left_elbow', 'left_wrist'],
+     ['neck', 'right_shoulder'],
+     ['right_shoulder', 'right_elbow'],
+     ['right_elbow', 'right_wrist']]
+
+AVG_PERSON_19K_SKELETON_3D_LENS = None
+
+HUMAN_36M_19K_SKELETON_2D = HUMAN_36M_19K_SKELETON_3D
+
+HUMAN_36M_19K_SKELETON_NAMES = \
+    ['right_pelvic_girdle',
+     'right_thigh',
+     'right_foreleg',
+     'right_foot',
+     'left_pelvic_girdle',
+     'left_thigh',
+     'left_foreleg',
+     'left_foot'
+     'low_spine',
+     'high_spine',
+     'neck',
+     'head',
+     'left_shoulder_girdle',
+     'left_upper_arm',
+     'left_forearm',
+     'right_shoulder_girdle',
+     'right_upper_arm',
+     'right_forearm']
+
+HUMAN_36M_19K_SKELETON_MASK = []
+
+HUMAN_36M_19K_UNIT_LENGTH_LIMB  = ['right_knee', 'right_ankle']
+
+HUMAN_36M_19K_RIGHT_LIMBS = \
+    [['mid_hip', 'right_hip'],
+     ['right_hip', 'right_knee'],
+     ['right_knee', 'right_ankle'],
+     ['right_ankle', 'right_foot_tip'],
+     ['neck', 'right_shoulder'],
+     ['right_shoulder', 'right_elbow'],
+     ['right_elbow', 'right_wrist']]
+
+HUMAN_36M_19K_LEFT_LIMBS = \
+    [['mid_hip', 'left_hip'],
+     ['left_hip', 'left_knee'],
+     ['left_knee', 'left_ankle'],
+     ['left_ankle', 'left_foot_tip'],
+     ['neck', 'left_shoulder'],
+     ['left_shoulder', 'left_elbow'],
+     ['left_elbow', 'left_wrist']]
+
+################################################################################
+# OPENPOSE keypoints
+################################################################################
+
+OPENPOSE_17K_3D = \
+  ['chin', 'neck',
+   'right_shoulder', 'right_elbow', 'right_wrist',
+   'left_shoulder',  'left_elbow',  'left_wrist',
+   'mid_hip',
+   'right_hip', 'right_knee', 'right_ankle', 'right_foot_tip',
+   'left_hip',  'left_knee',  'left_ankle',  'left_foot_tip']
+
+OPENPOSE_17K_2D = OPENPOSE_17K_3D
+
+OPENPOSE_17K_ROOT = 'mid_hip'
+
+OPENPOSE_17K_SKELETON_3D = \
+    [['mid_hip', 'right_hip'],
+     ['right_hip', 'right_knee'],
+     ['right_knee', 'right_ankle'],
+     ['right_ankle', 'right_foot_tip'],
+     ['mid_hip', 'left_hip'],
+     ['left_hip', 'left_knee'],
+     ['left_knee', 'left_ankle'],
+     ['left_ankle', 'left_foot_tip'],
+     ['mid_hip', 'neck'],
+     ['neck', 'chin'],
+     ['neck', 'left_shoulder'],
+     ['left_shoulder', 'left_elbow'],
+     ['left_elbow', 'left_wrist'],
+     ['neck', 'right_shoulder'],
+     ['right_shoulder', 'right_elbow'],
+     ['right_elbow', 'right_wrist']]
+
+AVG_PERSON_OPENPOSE_17K_SKELETON_3D_LENS = None
+
+OPENPOSE_17K_SKELETON_2D = OPENPOSE_17K_SKELETON_3D
+
+OPENPOSE_17K_SKELETON_NAMES = \
+    ['right_pelvic_girdle',
+     'right_thigh',
+     'right_foreleg',
+     'right_foot',
+     'left_pelvic_girdle',
+     'left_thigh',
+     'left_foreleg',
+     'left_foot'
+     'spine',
+     'neck',
+     'head',
+     'left_shoulder_girdle',
+     'left_upper_arm',
+     'left_forearm',
+     'right_shoulder_girdle',
+     'right_upper_arm',
+     'right_forearm']
+
+OPENPOSE_17K_SKELETON_MASK = []
+
+OPENPOSE_17K_UNIT_LENGTH_LIMB  = ['right_knee', 'right_ankle']
+
+OPENPOSE_17K_RIGHT_LIMBS = \
+    [['mid_hip', 'right_hip'],
+     ['right_hip', 'right_knee'],
+     ['right_knee', 'right_ankle'],
+     ['right_ankle', 'right_foot_tip'],
+     ['neck', 'right_shoulder'],
+     ['right_shoulder', 'right_elbow'],
+     ['right_elbow', 'right_wrist']]
+
+OPENPOSE_17K_LEFT_LIMBS = \
+    [['mid_hip', 'left_hip'],
+     ['left_hip', 'left_knee'],
+     ['left_knee', 'left_ankle'],
+     ['left_ankle', 'left_foot_tip'],
+     ['neck', 'left_shoulder'],
+     ['left_shoulder', 'left_elbow'],
+     ['left_elbow', 'left_wrist']]
+
+################################################################################
 ################################################################################
 
 class DatasetMisc(object):
     def __init__(self, dataset_type):
         self.dataset_type = dataset_type
 
-        if self.dataset_type == 'human36_17k':
+        if self.dataset_type == 'openpose_17k':
+            self.init_openpose_17k()
+
+        elif self.dataset_type == 'human36_19k':
+            self.init_human_36_19k()
+
+        elif self.dataset_type == 'human36_17k':
             self.init_human_36_17k()
 
         elif self.dataset_type == 'human36_14k':
@@ -296,6 +463,32 @@ class DatasetMisc(object):
         self.SKELETON_3D_LENS_AVG_PERSON = AVG_PERSON_17K_SKELETON_3D_LENS
         self.SKELETON_3D_NAMES = HUMAN_36M_17K_SKELETON_NAMES
         self.SKELETON_3D_MASK  = [self.SKELETON_3D_NAMES.index(i) for i in HUMAN_36M_17K_SKELETON_MASK]
+
+    def init_human_36_19k(self):
+        self.KEYPOINTS_2D = HUMAN_36M_19K_2D
+        self.KEYPOINTS_3D = HUMAN_36M_19K_3D
+        self.ROOT_KPT     = HUMAN_36M_19K_ROOT
+        self.SKELETON_2D  = HUMAN_36M_19K_SKELETON_2D
+        self.SKELETON_3D  = HUMAN_36M_19K_SKELETON_3D
+        self.UNIT_LENGTH_LIMB = HUMAN_36M_19K_UNIT_LENGTH_LIMB
+        self.RIGHT_LIMBS      = HUMAN_36M_19K_RIGHT_LIMBS
+        self.LEFT_LIMBS       = HUMAN_36M_19K_LEFT_LIMBS
+        self.SKELETON_3D_LENS_AVG_PERSON = AVG_PERSON_19K_SKELETON_3D_LENS
+        self.SKELETON_3D_NAMES = HUMAN_36M_19K_SKELETON_NAMES
+        self.SKELETON_3D_MASK  = [self.SKELETON_3D_NAMES.index(i) for i in HUMAN_36M_19K_SKELETON_MASK]
+
+    def init_openpose_17k(self):
+        self.KEYPOINTS_2D = OPENPOSE_17K_2D
+        self.KEYPOINTS_3D = OPENPOSE_17K_3D
+        self.ROOT_KPT     = OPENPOSE_17K_ROOT
+        self.SKELETON_2D  = OPENPOSE_17K_SKELETON_2D
+        self.SKELETON_3D  = OPENPOSE_17K_SKELETON_3D
+        self.UNIT_LENGTH_LIMB = OPENPOSE_17K_UNIT_LENGTH_LIMB
+        self.RIGHT_LIMBS      = OPENPOSE_17K_RIGHT_LIMBS
+        self.LEFT_LIMBS       = OPENPOSE_17K_LEFT_LIMBS
+        self.SKELETON_3D_LENS_AVG_PERSON = AVG_PERSON_OPENPOSE_17K_SKELETON_3D_LENS
+        self.SKELETON_3D_NAMES = OPENPOSE_17K_SKELETON_NAMES
+        self.SKELETON_3D_MASK  = [self.SKELETON_3D_NAMES.index(i) for i in OPENPOSE_17K_SKELETON_MASK]
 
     def init_shg_16k(self):
         self.KEYPOINTS_2D = HUMAN_36M_16K_2D

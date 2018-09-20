@@ -1,0 +1,27 @@
+# for redundant files
+*~
+*.pyc
+*.swp
+
+# for jupyter notebook
+.ipynb_checkpoints/
+
+# for data and experiments directories
+checkpoint/*
+!checkpoint/readme.md
+
+# mturk data
+mturk_data/*
+!mturk_data/readme.md
+
+# opts
+opts/*
+!opts/fig_1d/*
+!opts/fig_4ab/*
+!opts/fig_4c/*
+!opts/fig_4d/*
+!opts/fig_5/*
+!opts/table_1/*
+!opts/table_2/*
+!opts/default_human36.py
+!opts/default_lsp.py

@@ -12,7 +12,8 @@ from random import shuffle
 
 class Human36M(Dataset):
     def __init__(self, misc, cameras_dict, data_dict, stat_2d, stat_3d,
-                       tol_mm, num_pairs, amount_data, rel_labels_noise_prob, is_train=True):
+                 tol_mm, num_pairs, amount_data, rel_labels_noise_prob,
+                 in_dropout_p, is_train=True):
 
         self.cameras_dict = cameras_dict
 
@@ -21,8 +22,9 @@ class Human36M(Dataset):
         skeleton_pairs_2d, skeleton_pairs_3d = misc.get_skeleton_pairs()
         self.skeleton_pairs = skeleton_pairs_2d
 
-        self.tol_mm                  = tol_mm
-        self.amount_data             = amount_data
+        self.tol_mm       = tol_mm
+        self.amount_data  = amount_data
+        self.in_dropout_p = in_dropout_p
 
         ########################################################################
         ## select subset of the data
@@ -67,6 +69,17 @@ class Human36M(Dataset):
         print(" - normalizing data")
         self.norm_inputs = (self.input_data - stat_2d['mean'][np.newaxis, ...]) / stat_2d['std'][np.newaxis, ...]
         self.norm_inputs[np.isnan(self.norm_inputs)] = 0
+
+        ########################################################################
+        # apply dropout to the inputs with a certain probability
+        if self.in_dropout_p > 0:
+            print("\n - applying input data dropout with p=[{}]".format(self.in_dropout_p))
+            assert self.in_dropout_p <= 1, "Cannot have dropout probability > 1."
+            input_mask = np.random.choice([0, 1],
+                            size=(self.input_data.shape[0],self.input_data.shape[1]/2),
+                            p=[self.in_dropout_p, 1. - self.in_dropout_p])
+            input_mask = np.repeat(input_mask, 2, axis=1)
+            self.norm_inputs *= input_mask
 
         self.norm_targets = (self.target_data - stat_3d['mean'][np.newaxis, ...]) / stat_3d['std'][np.newaxis, ...]
         self.norm_targets[np.isnan(self.norm_targets)] = 0

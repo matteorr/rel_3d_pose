@@ -61,13 +61,15 @@ def main_human(opt, save_op=True, return_proc=False):
     amt_test_data   = opt.amt_test_data
     train_rel_labels_noise_prob = opt.rel_labels_noise_prob
     test_rel_labels_noise_prob  = 0. #NOTE: hard coded to 0 for the test set
+    in_dropout_p    = opt.in_dropout_p
 
     if opt.is_train:
         print("\n>>> creating Train dataset")
         # create dataset of type Human36M
         train_h36 = \
             Human36M( misc, cameras_dict_train, data_dict_train, stat_2d, stat_3d,
-                      tol_mm, num_pairs, amt_train_data, train_rel_labels_noise_prob, is_train=True )
+                      tol_mm, num_pairs, amt_train_data, train_rel_labels_noise_prob,
+                      in_dropout_p, is_train=True )
         # create data loader
         train_loader = DataLoader(dataset=train_h36, batch_size=opt.train_batch,
                                   shuffle=True, num_workers=opt.job)
@@ -78,7 +80,8 @@ def main_human(opt, save_op=True, return_proc=False):
         # create dataset of type Human36M
         test_h36 = \
             Human36M( misc, cameras_dict_test, data_dict_test, stat_2d, stat_3d,
-                      tol_mm, num_pairs, amt_test_data, test_rel_labels_noise_prob, is_train=False )
+                      tol_mm, num_pairs, amt_test_data, test_rel_labels_noise_prob,
+                      in_dropout_p, is_train=False )
         # create data loader
         test_loader = DataLoader(dataset=test_h36, batch_size=opt.test_batch,
                                   shuffle=False, num_workers=0, drop_last=False)

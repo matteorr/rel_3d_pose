@@ -1,7 +1,7 @@
 #
 # This script generates a sequence of predictions from H36M using blender.
 # Need to set videos_path and blender_path.
-# 
+#
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,7 +12,7 @@ import os
 import sys
 sys.path.append('../')
 from src.misc import DatasetMisc
-from src.data_formats.human36_config import pose_config_br
+from src.data_formats.human36_17k_config import pose_config_br
 
 # loads gt and predicted poses
 op_dir = 'h36/'

@@ -15,7 +15,7 @@ import sys
 sys.path.append('../')
 from src.misc import DatasetMisc
 from src.utils.pose_plotter import PosePlotter
-from src.data_formats.human36_config import pose_config_br
+from src.data_formats.human36_17k_config import pose_config_br
 
 # loads gt and predicted poses
 op_dir = 'h36/'
