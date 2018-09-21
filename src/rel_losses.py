@@ -73,7 +73,6 @@ def camera_coord_3d_loss(misc, pose_3d_norm, pose_3d_unnorm, gt_limb_lens, loss_
         batch_size = pose_3d_unnorm.shape[0]
         pose_3d_unnorm_rs = pose_3d_unnorm.view(batch_size,-1,3)
 
-    if use_symm_loss:
         joint_1 = [k[0] for k in misc.SKELETON_3D_IDX]
         joint_2 = [k[1] for k in misc.SKELETON_3D_IDX]
         skel_dis = torch.sqrt(((pose_3d_unnorm_rs[:, joint_1, :] - pose_3d_unnorm_rs[:, joint_2, :])**2).sum(2) + 1e-8)

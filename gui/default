@@ -1,0 +1,51 @@
+# /etc/nginx/sites-enabled/default
+
+server {	
+
+	listen 80;
+        listen 443 ssl;
+        server_name aws-ec2-cit-mronchi.org;
+
+        ssl_certificate /etc/nginx/ssl/bundle_certificate.crt;
+        ssl_certificate_key /etc/nginx/ssl/aws-ec2-cit-mronchi.key;
+
+        location = /lsp_ann { rewrite ^ /lsp_ann/; }
+        location /lsp_ann { try_files $uri @lsp_ann; }
+        location @lsp_ann {
+                include uwsgi_params;
+                #uwsgi_param SCRIPT_NAME /mturk;
+                #uwsgi_modifier1 30;
+                uwsgi_pass unix:/tmp/uwsgi_mturk_lsp_ann.sock;
+        }
+
+        location = /cocoa_interactions { rewrite ^ /cocoa_interactions/; }
+        location /cocoa_interactions { try_files $uri @cocoa_interactions; }
+        location @cocoa_interactions {
+                include uwsgi_params;
+                #uwsgi_param SCRIPT_NAME /mturk;
+                #uwsgi_modifier1 30;
+                uwsgi_pass unix:/tmp/uwsgi_mturk_cocoa_interactions.sock;
+        }
+
+        location = /cocoa_depth { rewrite ^ /cocoa_depth/; }
+        location /cocoa_depth { try_files $uri @cocoa_depth; }
+        location @cocoa_depth {
+                include uwsgi_params;
+                #uwsgi_param SCRIPT_NAME /mturk;
+                #uwsgi_modifier1 30;
+                uwsgi_pass unix:/tmp/uwsgi_mturk_cocoa_depth.sock;
+        }
+
+    	location / {
+        	include uwsgi_params;
+        	uwsgi_pass unix:/tmp/uwsgi_root.sock;
+    		#proxy_pass http://0.0.0.0:5001;
+	}	
+
+    location /static {
+            root /;
+            try_files /home/ubuntu/amt_guis/resources$uri =404;
+            #expires 30d;
+            #access_log off;
+    }
+}

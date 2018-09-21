@@ -1,0 +1,1015 @@
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+<script src="/static/javascript/TurkTools.js"></script>
+
+<script>
+/**
+ * A couple notes:
+ * The tutorial image is specifically chosen and hardcoded.
+ * We decided to just gather 5 random comparisons on each image than the full
+ * sorted depth. As such, the original MergeSort algorithm isn't used anymore.
+ * TODO refactor and remove MergeSort
+ **/
+
+// Variables obtained from the Flask server
+var subj_id_list = {{ subj_id_list }};  // List of subjects to annotate
+var keypoint_labels = JSON.parse({{ keypoint_labels|tojson }});
+if ("{{ dataset }}" == "lsp") {
+	var base_url = "http://vision.caltech.edu/~mronchi/data/LSP/images";
+} else {
+	var base_url = undefined;
+}
+
+// number of trials that the turk annotator will have to complete 
+// corresponds to the number of subjects
+var num_trials = subj_id_list.length;
+
+// Number of comparisons the user has left to accomplish
+var comparisons_left = 25;
+
+// Variable to manage the visibility of instructions
+var flag_view_instructions = 1;
+
+// Variables to manage number of trials per turker. Each trial consists 
+// of annotating all the objects interacting with a specific subject
+var cur_trial = 1;
+var flag_trial_run = false;
+var compl_trials = 0;
+var newUserCheck;
+var flag_tutorial_trial_run = true;
+
+// Lists of keypoints for each subject in the subj_id_list
+var image_keypoints_list = {};
+// Keep track of the comparisons which are unsure (and inferred unsure)
+var keypoint_comparisons_unsure = []
+// Keep track of the results of comparisons done and inferred
+var keypoint_comparisons_res = {}
+// Keep track of the order comparisons were done
+var keypoint_comparisons_order = []
+var keypoint_id1, keypoint_id2;
+var comps_done = 0;
+
+// Variable for the image to be overlaid with keypoints
+var image;
+var canvas;
+var image_bbox_top, image_bbox_left;
+var image_bbox_height, image_bbox_width;
+var IMAGE_BBOX_PAD = 50; // padding size around the keypoints
+var canvas_visible = true;
+var resize_height = 400;
+var image_container_size = 400;
+
+// The interval used to continuously draw the keypoints onto the canvas. It is
+// needed in a global scope so it can be cleared each time a new interval must
+// be made.
+var drawInterval;
+
+// Variable to measure response times 
+var startTrialTime = 0;
+var totalAssignmentTime = 0;
+var startAssignmentTime = 0;
+var startInstructionReadTime = 0;
+var totalInstructionReadTime = 0;
+
+// variables containing mechanical turk information
+var _amt_assignment_id = '';
+var _amt_worker_id = '';
+var _hit_id = '';
+var _total_depth_str = '';
+var _all_trials_res_dict = {};
+var _worker_exp = 0;
+
+
+$(document).ready(function() {
+	startInstructionReadTime = new Date().getTime();
+	
+	console.debug("_____________ DEBUG _____________: in ready()");
+	
+	// Hide the submit button so turkers don't press it before completing task
+	$('#submitButton').hide();
+	// Hide the done/flag buttons so turkers don't press it before completing trial
+	$('#done_buttons').hide();
+	// Bind the start trial to space
+	$(document).bind('keyup', 'space', SetupTrial);
+	// Bind the StepMergeSort function to comparison decision clicks
+	$("#green_closer_button").click(StepMergeSort);
+	$("#pink_closer_button").click(StepMergeSort);
+	$("#neither_closer_button").click(StepMergeSort);
+	$("#toggle_canvas").click( function () { canvas_visible = !canvas_visible; } );
+	$("#backtrack_comparison_button").click(Backstep);
+	
+	$("input[name='_hit_flag']").click( function(){ $('#submit_div').show();} );
+
+	$("#submitButton").click(function() {
+		var _hit_results = {
+			"_hit_id": parseInt(_hit_id),
+			"_assignment_id": _amt_assignment_id,
+			"_worker_id": _amt_worker_id,
+			"_worker_exp": _worker_exp,
+			"_hit_it": totalInstructionReadTime,
+			"_hit_flag": $("input[name='_hit_flag']:checked").val(),
+			"_hit_rt": totalAssignmentTime,
+			"_gui_rating": $('#_gui_rating').val(),
+			"_hit_comment": $('#_hit_comment').val(),
+			"_trials_results": JSON.stringify(_all_trials_res_dict),
+			"_hit_depth_str": _total_depth_str,
+			"_hit_reject_flag": $('#_hit_reject_flag').val()
+		};
+		
+		console.debug("_____________ DEBUG _____________: in submit() [" + JSON.stringify(_hit_results) + "]");
+			
+		$.ajax({
+			url: "/cocoa_depth/{{ dataset }}/PostHITResults/",
+			type: "POST",
+			contentType: "application/json",
+			data: JSON.stringify(_hit_results),
+			dataType: "text",
+			success: function( data ) {
+				console.debug( "   $> PostHITResults() success" + data );
+			}
+		});
+	});
+	
+	if (IsOnTurk()){
+		_amt_worker_id = GetWorkerId();
+		console.debug('   $> worker_id: ' + _amt_worker_id);
+		$('#_worker_id').val(_amt_worker_id);
+		
+		_amt_assignment_id = GetAssignmentId();
+		console.debug('   $> assignment id: ' + _amt_assignment_id);
+		$('#assignmentId').val(_amt_assignment_id);
+		$('#_assignment_id').val(_amt_assignment_id);
+	}
+	
+	var url = document.URL;
+	console.debug('   $> url: ' + url);
+	var tmp = url.split("/");
+	if (IsOnTurk()){
+		var tmp_2 = tmp[tmp.length-1];
+		tmp = tmp_2.split("?");
+		_hit_id = tmp[0];
+	} else {
+		_hit_id = tmp[tmp.length-1];
+	}
+	console.debug('   $> hit id: ' + _hit_id);
+	$('#_hit_id').val(parseInt(_hit_id));
+
+	write_image_keypoints_divs();
+});
+
+
+/**
+ * Create html elements needed for displaying each trial.
+ */
+function write_image_keypoints_divs() {
+	console.debug("_____________ DEBUG _____________: in write_image_keypoints_divs" + "[" + num_trials + "]");
+	console.debug("_____________ DEBUG _____________: in write_image_keypoints_divs" + "[" + $('#image_container').html() + "]");        
+
+	str = $('#image_container').html(); 
+	for ( i = 1; i <= num_trials + 1; i++ ) {
+		  s = '<img class="displays" id="t' + String(i) + '_img"><canvas id="image_keypoints_canvas_' + String(i) + '" name="t' + String(i) + '_img_canvas" style="visibility:hidden;"></canvas>'  
+		  console.debug("_____________ DEBUG _____________: in write_image_keypoints_divs" + "[" + s + "]");
+		  str = str + s;
+	}
+	console.debug("_____________ DEBUG _____________: in write_image_keypoints_divs" + "[" + str + "]");
+	$('#image_container').html( str );
+}
+
+
+/**
+ * Called at the beginning of a trial. Ensures Turkers are legitimate and have
+ * read the directions carefully.
+ */
+function SetupTrial() {
+	console.debug("_____________ DEBUG _____________: in SetupTrial()");
+
+	// If trial is already running return so function isn't repeated
+	if ( flag_trial_run ) {
+		return;
+	}
+	// If completed trials = 0 it means turker just started HIT so check his 
+	// instruction reading time and if it is less than a minute ask him to read 
+	// more carefully
+	if ( IsOnTurk() && compl_trials == 0 ) {
+
+		// If worker is previewing he should first accept
+		if ( IsTurkPreview() ) {
+			alert("Please accept the HIT before starting!");
+			return;
+		}
+		// If worker is on the blocked workers list do not allow him to move forward
+		$.ajax({
+			url: "/cocoa_depth/{{ dataset }}/IsBlockedWorker/",
+			type: "POST",
+			contentType: "application/json",
+			data: JSON.stringify({
+				"_worker_id": _amt_worker_id,
+			}),
+			dataType: "text",
+			success: function( returned_data ) {
+				
+				console.debug( "   $> IsBlockedWorker() success:" + returned_data );
+				if ( returned_data == 'REJECT' ) {
+					console.debug("_____________ DEBUG _____________: Blocked Worker ID: " + _amt_worker_id);
+					alert("You have been blocked because of the low quality of your work. Please return HIT. Thanks!");
+					return;
+				} else {
+					// get timing for instruction reading
+					var currentTime = new Date().getTime();
+					totalInstructionReadTime = currentTime - startInstructionReadTime;
+					console.debug("_____________ DEBUG _____________: Instruction reading time: " + totalInstructionReadTime);
+					if (!newUserCheck){
+						$('#_hit_it').val(totalInstructionReadTime);
+						console.debug('   $> Read instructions first time in msec: ' + totalInstructionReadTime);
+						
+						//_worker_exp = IsNewWorker(_amt_worker_id);
+						newUserCheck = $.ajax({
+							url: "/cocoa_depth/{{ dataset }}/IsNewWorker/",
+							type: "POST",
+							contentType: "application/json",
+							data: JSON.stringify({ "_worker_id": _amt_worker_id	}),
+							dataType: "text"
+						}).then(
+							function( returned_data ) {
+								console.debug( "   $> IsNewWorker() success _worker_exp: " + returned_data );
+								_worker_exp = parseInt(returned_data);
+								$('#_worker_exp').val(parseInt(returned_data));
+								console.debug('   $> Worker experience is : ' + _worker_exp);
+								return _worker_exp;
+							}
+						);
+					}
+					console.debug('   $> Out then : ' + _worker_exp);
+					newUserCheck.then(
+						function( _worker_exp ) {
+							console.debug('   $> In function : ' + _worker_exp);
+							if ( totalInstructionReadTime < 30000 && _worker_exp == 0) {
+								console.debug('   $> In if : ' + _worker_exp);
+								alert("It is your first time doing this HIT. Please take at least 30 seconds to carefully read the instructions! Thanks!");
+								// Shows instructions
+								flag_view_instructions = 0;
+								ManageInstructions();
+								return;
+							} else {
+								// start counting execution time
+								startAssignmentTime = new Date().getTime();
+								
+								// If the Turker has no experience with doing this HIT, do the tutorial trial.
+								if (_worker_exp == 0) {
+									console.log("Worker has no experience. Do Tutorial Subject");
+									$("#startTrial").html("Next Image (press space)");	
+									comparisons_left += 5;
+									subj_id_list.splice(0, 0, 279782);
+									
+									num_trials = 6; //subj_id_list.length;
+									console.log("num_trials " + num_trials);
+									flag_tutorial_trial_run = true;
+									GetTrialData();
+								} else {	
+									flag_tutorial_trial_run = false;
+									GetTrialData();
+								}
+							}
+						}
+					);
+				}
+			}
+		});
+	} else {
+		flag_tutorial_trial_run = false;
+		
+		// Set flag tutorial trial run to true if you want to see the tutorial for debugging
+		//flag_tutorial_trial_run = true;
+		
+		$("#startTrial").html("Next Image (press space)");	
+		GetTrialData();
+	}
+}
+
+
+/**
+ * Queries the server for the data for the current trial in this hit.
+ */
+function GetTrialData() {
+	// Set flag for running trial
+	flag_trial_run = true;
+	
+	// Hides instructions at the beginning of trial
+	flag_view_instructions = 1;
+	ManageInstructions();
+	
+	console.debug("_____________ DEBUG _____________: in GetTrialData()");
+	console.debug("   $> : " + subj_id_list[cur_trial - 1]);
+
+	// Query Server for the entities contained in the image corresponding to this trial
+	// pass 	-> the image id of current trial
+	// obtain 	-> all the annotations in terms of polygons and category-ids in image
+	$.ajax({
+		url: "/cocoa_depth/{{ dataset }}/GetTrialData/", 
+		type: "POST",
+		contentType: "application/json",
+		data: JSON.stringify({'_{{ dataset }}_subj_id': subj_id_list[cur_trial - 1]}),
+		dataType: "json",
+		success: function( data ) {
+			console.debug("_____________ DEBUG _____________: in /GetTrialData()/success");
+	
+			// Extract all the info provided from the server
+			
+			// Url source for the image
+			var img_trial_url = data["_{{ dataset }}_img_src"];
+			if (base_url) {
+				img_trial_url = base_url + "/" + img_trial_url;
+			}
+                        if (flag_tutorial_trial_run) {
+                               img_trial_url = '/static/images/human/human36m_train_0000279782.jpg'
+                        }
+			console.debug("   $> image trial url -> " + img_trial_url );
+		
+			// Keypoints of the subject in the image
+			var keypoints = data['_image_keypoints'];
+			console.debug("   $> keypoints list -> [" + keypoints + "]");
+			image_keypoints_list['image_keypoints_' + cur_trial] = keypoints
+
+			// Keypoint bounding box. Convert from x, y, w, h to
+			// top, right, bottom, left.
+			// Conversion is y, x+w, y+h, x.
+			// Add a bit of padding around the bbox as well.
+			var newimage = new Image();
+			newimage.src = img_trial_url; 
+			newimage.onload = function()
+			{
+			
+			if (!('_keypoint_bbox' in data)) {
+				_w = this.naturalWidth;
+				_h = this.naturalHeight;
+				keypoints_bbox = [0, 0, _w, _h];
+			}
+			var x = keypoints_bbox[0], y = keypoints_bbox[1], w = keypoints_bbox[2], h = keypoints_bbox[3];
+			keypoints_bbox = [y-IMAGE_BBOX_PAD, x+w+IMAGE_BBOX_PAD, y+h+IMAGE_BBOX_PAD, x-IMAGE_BBOX_PAD];
+			keypoints_bbox_str = '';
+			for (var kc = 0; kc < keypoints_bbox.length; kc++) {
+				keypoints_bbox_str += Math.floor(keypoints_bbox[kc]) + "px "
+			}
+
+			if (w > h) {
+				resize_height = (resize_height * h) / w;
+			}	
+			console.log("populating image_bbox data"); 
+						image_bbox_top = Math.round(Number(-keypoints_bbox[0]));
+			image_bbox_left = Math.round(Number(-keypoints_bbox[3]));
+			image_bbox_height = h;
+			image_bbox_width = w;
+	
+			$('#t' + cur_trial + '_img').css('position', "absolute" );
+			$('#t' + cur_trial + '_img').height(resize_height);
+			$('#image_container').height(400);
+			$('#image_container').width(400);
+				
+			comps = data["_comps"]
+
+			// Hide StartTrial button
+			$('#startTrial').hide();
+			// Show the image
+			$('#t' + cur_trial + '_img').attr('src', img_trial_url );
+			$('#t' + cur_trial + '_img').show();
+			tmp_image = $('#t' + cur_trial + '_img')
+		
+			canvas = $("image_keypoints_canvas_" + cur_trial);	
+			canvas.css("position", "absolute");
+			canvas.offset({top:-image_bbox_top,left:-image_bbox_left});
+	
+			canvas.height = image_container_size; // image_bbox_height;
+			canvas.width = image_container_size;  // image_bbox_width;
+
+                        // Show the side panel
+                        $('#side_panel_container').show();
+			$("#side_panel_canvas").show();
+			
+			// Show annotations panel right of image
+			$('#ann_container').show();
+			// Show the button panel below image
+			$('#button_panel').show();
+			// Only show the trial title if its a tutorial run
+			if (flag_tutorial_trial_run) {
+				$('#trialTitle').show();
+			}
+	
+			// Set the start time after the loading has been completed
+			startTrialTime = new Date().getTime();
+			
+			DoTrial();
+			}
+		}
+	});
+
+}
+
+/**
+ * Gathers depth information from the Turker each time it is called.
+ *
+ * Trial occurs in two phases. The first phase is a MergeSort to get an
+ * ordering. The second phase is to try to reinsert the Unsure comparisons.
+ */
+function DoTrial() {
+
+	console.debug("_____________ DEBUG _____________: in /DoTrial()");
+	
+	if (keypoint_comparisons_order.length == 0) {
+		$("#backtrack_comparison_button").prop("disabled", true);
+	} else {
+		$("#backtrack_comparison_button").prop("disabled", false);
+	}
+        
+	$("#pink_closer_button").hide();
+	$("#green_closer_button").hide();
+	
+	$("#pink_closer_button").delay(750).show(0);
+	$("#green_closer_button").delay(750).show(0);	
+		
+	// Set image variable
+	image = $('#t' + cur_trial + '_img');
+	canvas = $('#image_keypoints_canvas_' + cur_trial)
+
+	// Get indices of the existing and visible keypoints. We'll use these to
+	// represent the keypoints when we sort them by depth.
+	var keypoints = image_keypoints_list['image_keypoints_' + cur_trial]
+
+	// MergeSort to find the relative depth of each keypoint
+	if (comps_done >= 5) {
+		console.debug("   $> First phase MergeSort done. Reinsert Unsure Cmps");
+		// remove the temporary comparisons which are Unsure but were marked
+		// Same Distance.
+		
+		$("#pink_closer_button").hide();
+		$("#green_closer_button").hide();
+		$("#neither_closer_button").hide();
+		$("#unsure_distance_button").hide();
+		$("#trialTitle").hide();
+		NextTrial();
+	} else {
+		console.log("End of DoTrial");
+		k_id1 = comps[comps_done][0]
+		k_id2 = comps[comps_done][1]
+		k_ind1 = k_id1 * 3
+		k_ind2 = k_id2 * 3
+		canvas_visible = true;
+		$("#side_panel_canvas").css("visibility", "visible");
+		ImagePairKeypoints(keypoints[k_ind1], keypoints[k_ind1 + 1], keypoints[k_ind2], keypoints[k_ind2 + 1], k_id1, k_id2);
+		
+		if (flag_tutorial_trial_run) {
+			if (comps_done == 2) {
+				// This is the left vs right wrist which is difficult
+				setTimeout(function () { alert("This is a difficult comparison between left and right wrist. In situations where it is hard to tell, try your best!");}, 750);
+			} else if (comps_done == 3) {
+				setTimeout(function () { alert("This is an example of occlusion. We're asking about the left elbow, but the pink circle looks like it's on the left wrist. Make sure you always provide the answer based on the side panel or the body part in the button and not just on the image."); }, 750);	
+			}	
+		}
+	}
+}
+
+/**
+ * Continuously draws two points on the canvas representing two keypoints.
+ */
+function ImagePairKeypoints( x1, y1, x2, y2, k_id1, k_id2 ) {
+	console.debug("_____________ DEBUG _____________: in /ImagePairKeypoints()");
+	
+	var _h = $("#t" + cur_trial + "_img").get(0).naturalHeight;
+	var _w = $("#t" + cur_trial + "_img").get(0).naturalWidth;
+	image_bbox_height = _h;
+	image_bbox_width = _w;
+	
+	var magnification = resize_height / image_bbox_height; //IMAGE_BBOX_PAD;
+	x1 *= magnification;
+	y1 *= magnification;
+	x2 *= magnification;
+	y2 *= magnification;
+
+	// This is due to the IMAGE_BBOX_PAD;
+	// To resize the image, need to subtract this out first.	
+	x1 -= IMAGE_BBOX_PAD;
+	y1 -= IMAGE_BBOX_PAD;
+	x2 -= IMAGE_BBOX_PAD;
+	y2 -= IMAGE_BBOX_PAD;
+		
+	var image_container_height = image_bbox_height; //$("#image_container").height();
+	var image_container_width = image_bbox_width; //$("#image_container").width();
+	
+	keypoint_id1 = k_id1;
+	keypoint_id2 = k_id2;
+
+	// This is prone to XSS injections
+	$("#green_closer_button").html("<b>" + keypoint_labels[k_id1] + "</b> is closer");
+	$("#pink_closer_button").html("<b>" + keypoint_labels[k_id2] + "</b> is closer");
+
+	$("#comparisons-left").html("<b>" + comparisons_left + "</b> comparisons to go");
+
+	var c = canvas;
+	var ctx = c[0].getContext('2d');
+
+	var ctx_side_panel = $("#side_panel_canvas")[0].getContext('2d');
+	var side_panel_coords = [ 164.46644592,  327.06005859,  111.46320343,  327.06005859,
+         143.26515198,  464.86849976,  150.33224487,  595.60986328,
+         217.46969604,  327.06005859,  190.96807861,  470.16882324,
+         185.66775513,  599.14337158,  168.        ,  242.25486755,
+         169.76676941,  130.94805908,  168.        ,  106.21320343,
+         166.23323059,   42.60930634,  235.13745117,  152.14935303,
+         240.43777466,  252.85551453,  263.40585327,  334.12716675,
+         102.62932587,  155.6829071 ,   95.56223297,  251.08874512,
+          60.22673035,  344.72781372];
+
+	var side_panel_coords = [ 166.23323059,   42.60930634,
+         168.        ,  132.21320343,         
+         235.13745117,  152.14935303,        
+         102.62932587,  155.6829071 ,           
+         240.43777466,  252.85551453,           
+         95.56223297,   251.08874512,         
+         263.40585327,  334.12716675,           
+         60.22673035,   344.72781372,          
+         217.46969604,  327.06005859,           
+         111.46320343,  327.06005859,                    
+         190.96807861,  470.16882324,         
+         143.26515198,  464.86849976,           
+         185.66775513,  599.14337158,           
+         150.33224487,  595.60986328,
+ 	  	 168,           332,
+		 168, 			220,
+		 168, 			106 ];        
+
+	
+	var draw = function(ctx, x1, y1, x2, y2){
+		ctx.beginPath();
+		ctx.strokeStyle="#00FF00";
+		ctx.lineWidth=2;
+		ctx.moveTo(x1, y1)
+		ctx.arc(x1, y1, 7, 0, 2*Math.PI)
+		ctx.stroke();
+
+		ctx.beginPath();
+		ctx.strokeStyle="#ff33ff";
+		ctx.moveTo(x2, y2)
+		ctx.arc(x2, y2, 7, 0, 2*Math.PI)
+		ctx.stroke();
+	 };
+
+	// Draw the keypoints every 100ms. So if the canvas is resized, the
+	// keypoints are redrawn. Sadly, this seems like the best way to do it.
+	clearInterval(drawInterval);
+	drawInterval = setInterval(function(){
+		if (canvas_visible) {
+			canvas.css("visibility", "visible");
+			ctx.canvas.height = image_container_size; //image_bbox_height;
+			ctx.canvas.width = image_container_size; //image_bbox_width;
+			canvas.css("position", "absolute");
+			
+			var _h = $("#t" + cur_trial + "_img").get(0).naturalHeight;
+			var original_image_height = _h;
+		
+			draw(ctx, x1+image_bbox_left, y1+image_bbox_top, x2+image_bbox_left, y2+image_bbox_top);
+		} else {
+			canvas.css("visibility", "hidden");
+		}
+		ctx_side_panel.canvas.height = 400;
+		ctx_side_panel.canvas.width = 200;
+		
+		var original_image_height = 653;
+		var new_image_height = 400;
+		var aspect_ratio = new_image_height * 1.0 / original_image_height;
+	
+		sp_x1 = side_panel_coords[k_id1 * 2] * aspect_ratio;
+		sp_y1 = side_panel_coords[k_id1 * 2 + 1] * aspect_ratio;
+		sp_x2 = side_panel_coords[k_id2 * 2] * aspect_ratio;
+		sp_y2 = side_panel_coords[k_id2 * 2 + 1] * aspect_ratio;
+
+		draw(ctx_side_panel, sp_x1, sp_y1, sp_x2, sp_y2);
+	}, 100);
+}
+
+/**
+ * Fired after Turker makes a decision on a keypoint pair. It is the callback
+ * function to continue the MergeSort.
+ */
+function StepMergeSort() {
+
+	console.debug("_____________ DEBUG _____________: in /StepMergeSort()");
+
+	var hardcoded_tutorial_answers = ["head", "right_wrist", "left_wrist", "left_elbow", "left_wrist"];
+	var hardcoded_tutorial_reses = [-1, -1, -1, 1, -1];
+
+	comps_done += 1;
+	var button_id = $(this).attr('id');
+	var k_id1 = keypoint_id1;
+	var k_id2 = keypoint_id2;
+	var key = k_id1.toString() + ',' + k_id2.toString();
+	var antikey = k_id2.toString() + ',' + k_id1.toString();
+
+	if (button_id == "unsure_distance_button") {
+		keypoint_comparisons_unsure.push(key);
+		// Pretend Unsure is the same as Same Distance. Remove these after
+		// MergeSort is done
+		keypoint_comparisons_res[key] = 0;
+	} else {
+		var res;
+		if (button_id == "green_closer_button") {
+			res = -1;
+		} else if (button_id == "pink_closer_button") {
+			res = 1;
+		} else if (button_id == "neither_closer_button") {
+			res = 0;
+		} else {
+			console.warn("StepMergeSort(): Problem with reading button id");
+		}
+
+		if (flag_tutorial_trial_run) {
+			 if (res != hardcoded_tutorial_reses[comps_done - 1]) {
+				alert("That was not the correct answer! The correct answer was " + hardcoded_tutorial_answers[comps_done - 1]);
+			} else {
+				alert("Good job, that was the correct answer!");
+			}
+		}
+
+		// Store the result of the current comparison
+		keypoint_comparisons_res[key] = res;
+
+		comparisons_left = comparisons_left - 1;
+	}
+	keypoint_comparisons_order.push(key)
+
+	// Restart the MergeSort but now with the new information
+	DoTrial();
+}
+
+/**
+ * Backtrack one comparison.
+ */
+
+function Backstep() {
+	var new_keypoint_comparisons_res = {};
+	
+	if (keypoint_comparisons_order.length > 0) {
+		comparisons_left += 1;
+		comps_done -= 1;
+		// Keep all the keypoints we've done except for the last one.	
+		console.log("keypoint_comparisons_order = " + keypoint_comparisons_order);
+		keypoint_comparisons_order.pop();
+		console.log("popped keypoint_comparisons_order = " + keypoint_comparisons_order);
+		for (var i = 0; i < keypoint_comparisons_order.length; i++) {
+			var key = keypoint_comparisons_order[i];
+		
+			new_keypoint_comparisons_res[key] = keypoint_comparisons_res[key];
+		}
+		keypoint_comparisons_res = new_keypoint_comparisons_res;
+		
+		clearInterval(drawInterval);
+		DoTrial();
+	}
+}
+
+
+function NextTrial() {
+
+	console.debug("_____________ DEBUG _____________: in /NextTrial()");
+	
+	// get timing for the trial just completed
+	var currentTime = new Date().getTime();
+	var RT = currentTime - startTrialTime;
+	$('#response_time_' + cur_trial).val(RT);
+	console.debug('   $> Completed trial: ' + cur_trial + " in msec: " + RT);
+	
+	// Increment number of completed trials
+	compl_trials = compl_trials + 1;
+	console.debug('   $> Number of completed trials: ' + compl_trials);
+
+	// Pack up the information from this trial.
+	var depth_info = {};
+	depth_info['keypoint_comparisons_unsure'] = keypoint_comparisons_unsure;
+	depth_info['keypoint_comparisons_res'] = keypoint_comparisons_res;
+	var depth_str = JSON.stringify(depth_info);
+	
+	var _trial_results = {
+			"_{{ dataset }}_subj_id": subj_id_list[cur_trial - 1], 
+			"_depth_str": depth_str,
+			"_assignment_id": _amt_assignment_id,
+			"_hit_id": parseInt(_hit_id),
+			"_worker_id": _amt_worker_id,
+			"_trial_rt": RT,
+			"_trial_num": cur_trial - 1,
+	};
+	
+	console.debug('   $> trial results: ' + JSON.stringify(_trial_results) );
+
+	if (!flag_tutorial_trial_run) {
+
+		_all_trials_res_dict[cur_trial - 1] = _trial_results;
+	
+		console.debug( JSON.stringify(_all_trials_res_dict) );
+
+		// save results of annotation on server. ajax post sends the data to
+		// the server python flask application that will save it on disk
+		$.ajax({
+			url: "/cocoa_depth/{{ dataset }}/PostTrialResults/", 
+			type: "POST",
+			contentType: "application/json",
+			data: JSON.stringify(_trial_results),
+			dataType: "text",
+			success: function( data ) {
+				console.debug( "   $> PostTrialResults() success: " + data );
+			}
+		});
+	
+		// store trial interactions string into a total interactions string
+		_total_depth_str = _total_depth_str + "***" + depth_str;
+	} else {
+		flag_tutorial_trial_run = false;
+	}
+	
+	// clean up variables for next subject that will be annotated
+	
+	// Initialize the string that will contain the info on the 
+	// interactions for the subject
+	depth_str = '';
+	
+	keypoint_comparisons_unsure = [];
+	keypoint_comparisons_res = {};
+	comps_done = 0;
+	keypoint_comparisons_order = [];
+	clearInterval(drawInterval);
+
+	$('#t' + cur_trial + '_img').hide();
+	$('#_trial_comment').val('Write here if you have specific concerns about the image.');
+	$('#button_panel').hide();
+	$('#ann_container').hide();
+	$('#trialTitle').hide();
+        $('#side_panel_container').hide();
+	$("#side_panel_canvas").hide();
+
+	$("#pink_closer_button").show();
+	$("#green_closer_button").show();
+	$("#neither_closer_button").show();
+	$("#unsure_distance_button").show();
+
+	// Hide instructions if they are visible
+	flag_view_instructions = 1;
+	ManageInstructions();
+	
+	if (cur_trial < num_trials) {
+		
+		// set the flag to false so that pressing space will launch new trial
+		flag_trial_run = false;
+
+		$("#image_keypoints_canvas_" + String(cur_trial)).css("visibility", "hidden");
+		cur_trial++;
+		$('#startTrial').show();
+	} else {
+		
+		// get timing for all the assignment
+		var currentTime = new Date().getTime();
+		totalAssignmentTime = currentTime - startAssignmentTime;
+		$('#_hit_rt').val(totalAssignmentTime);
+		console.debug('   $> Completed whole assignment in msec: ' + totalAssignmentTime);
+		$('#_hit_depth_str').val(_total_depth_str);
+		console.debug('   $> Total depth string: ' + _total_depth_str);
+		$('#_trials_results').val(JSON.stringify(_all_trials_res_dict));
+		console.debug('   $> All trials results: ' + JSON.stringify(_all_trials_res_dict));
+		var varbool =  totalAssignmentTime <= 30000;
+		console.debug('Test: ' + varbool.toString());
+		// a few sanity checks to decide if work was good or bad
+		if( totalAssignmentTime <= 40000 ) {
+			alert("Your assignment doesn't meet our quality requirements. Please RETURN HIT or it will be automatically rejected. Thanks!");
+			$('#_hit_reject_flag').val(true);
+			// could add worker id to bad list
+		}else{
+			$('#_hit_reject_flag').val(false);
+		}
+		
+		$('#submitButton').show();
+		$('#thanks').show();
+		$('#experiment').hide();
+	}
+}
+
+function ManageInstructions() {
+	
+	if (flag_view_instructions == 1) {
+		flag_view_instructions = 0;
+		$('#show_hide_instr').html('Show');
+		$('#all_instruction_container').hide();
+	} else {
+		flag_view_instructions = 1;
+		$('#show_hide_instr').html('Hide');
+		$('#all_instruction_container').show();
+	}
+}
+
+</script>
+
+<style>
+#experiment {
+	margin-left: auto;
+	margin-right: auto;
+	width: 85%;
+	font-family: Arial, Helvetica;
+	text-align: justify;
+}
+
+.image_instruction {
+	float: left;
+	margin: 5px;
+	width: 400px;
+}
+
+.side_panel_div {
+	float: left;
+	margin: 5px;
+	width: 200px;
+}
+
+#experiment_container_big {
+	width: 100%;
+}
+
+#experiment_container {
+	overflow: hidden;
+}
+
+#image_container_big {
+	float:left;
+	margin-left: 30px;
+	margin-right: 30px;
+	margin-bottom: 30px;
+	margin-top: 15px;
+}
+
+#image_container {
+	position: relative;
+}
+
+#side_panel_container {
+       display: none;
+}
+
+#ann_container {
+	display: none;
+	float: left;
+	overflow: hidden;
+	margin-left: 30px;
+}
+
+#annotation_box {
+	margin: 5px;
+}
+
+#startTrial {
+	position: absolute;
+	top: 0px;
+	left: 45px;
+	font-weight: bold;
+	color: blue;
+	font-size: 14pt;
+	width: 285px;
+}
+
+.displays {
+	display: none;
+	top: 0px;
+	left: 0px;
+}
+
+#thanks {
+	display: none;
+}
+
+</style>
+
+<div id="experiment">
+
+<h3>Determine the body part closest to the camera</h3>
+
+<ul>
+<li>Read all the examples to understand the possible scenarios you might face.</li>
+<li>Do not complete the HIT in less than 1 minute.</li>
+<li>Hide / show the instructions by pressing the button below.</li>
+</ul>
+
+<div id="instruction_button">
+	<p><b>Detailed Instructions:</b><button id="show_hide_instr" onclick="ManageInstructions()" style="margin-left: 30px;">Hide</button><p>
+</div>
+
+<div id="all_instruction_container">
+	<div id="image_instruction_container" style="width:800px;">
+		<div class="image_instruction" style="width:800px;">
+			<p><b>Depth Visualized</b></p>
+			<img src="/static/images/overview_fig_mturk.jpg" width="800px" border="3" style="margin-bottom:5px;">
+		</div>
+		<div style+"clear:both"></div>
+	</div>
+
+	<div id="image_instruction_container">
+		<!--empty container so the one above shows full page-->
+		<div style="clear:both"></div>
+	</div>
+
+	<div id="image_instruction_container">
+		<div class="image_instruction">
+			<p><b>Example 1: (Standard case)</b></p>
+			<p>The woman in the picture has a pink circle on the knee and a green circle on the hip. 
+                           She is walking so her knee is in front of her hip. To provide the correct answer click on the "knee is closer" button.
+			</p>
+			<img src="/static/images/1.png" width="400px" border="3" style="margin-bottom:5px;">
+		</div>
+		<div class="image_instruction">
+			<p><b>Example 2: (Close case)</b></p>
+			<p>It is unclear whether the left or right wrist is closer to the camera in the picture.
+				In this case, make your best guess and continue.
+			<img src="/static/images/4.png" width="400px" border="3" style="margin-bottom:5px;">
+		<div style="clear:both"></div>
+	</div>
+	
+</div>
+
+<ol>
+<li>You will be presented with a <b>target image (left panel)</b> of a human with one green and one pink circle on a body part.</li>
+<li><b><font color="red">Imagine you are holding the camera. Select which body part in the target image is closer to you.</font></b></li>
+<li>Some body parts <b>may not be visible (i.e. occluded)</b> due to the person's pose, so please <b>pay attention to the body part name</b>.</li>
+<li>Check the <b>reference image (right panel)</b> to confirm you are looking at the correct body parts.</li>
+<li><b>Always read</b> the body part name on the buttons when providing your answer.</li>
+</ol>
+
+<div id = "experiment_container_big">
+	<div id="experiment_container">
+		<div id="trialTitle" style="display:none;"><b><font color="red">TUTORIAL IMAGE WITH 5 COMPARISONS SINCE IT IS THE FIRST TIME YOU ARE DOING THE HIT.</font></b></div>	
+		<div id="image_container_big">
+                    <div>
+		      <div id="image_container" class="image_instruction">
+			<a href="javascript:SetupTrial()" id="startTrial">First Image (press space)</a>
+		      </div>
+                      <div class="side_panel_div" style="position:relative;">
+                       <img id="side_panel_container" src="/static/images/side_panel.jpeg" height="400px" border="3" style="margin-bottom:5px;">
+			</img>
+			<canvas id="side_panel_canvas" name="side_panel_canvas" style="position:absolute; top:3px; left:3px;"></canvas>
+                      </div>
+                      <div style="clear:both"></div>
+                    </div>
+		    <div id="button_panel" style="display:none; margin-top:5px; position:relative;">
+			<div id="sort_buttons">
+	                   <div style="margin-bottom:5px; margin-top:5px;">
+                             <button id="toggle_canvas">Toggle Circles</button>
+			     <button id="backtrack_comparison_button">Undo Last</button>
+                           </div>
+                           <div style="margin-bottom:5px;">
+                             <ul>
+                             <li> <div id="comparisons-left"></div></li>
+                             <li>Press the <b>Toggle Circles</b> button to show the picture without the overlaid circles.</li>
+                             <li>Press the <b>Undo Last</b> button if you realize you made a mistake.</li>
+                             </ul>
+                           </div>
+                           </div>
+				<div style="margin-bottom:10px;display:inline-block;"><button id="green_closer_button" style="font-size:20px;">Green is Closer</button></div>
+				<div style="margin-bottom:10px;display:inline-block;"><button id="pink_closer_button" style="font-size:20px;">Pink is Closer</button></div>
+			</div>
+		    </div>
+		</div>
+
+	</div>
+</div>
+
+</div>
+
+<div id="thanks" style="margin-bottom:5px;">
+	
+<!-- <form action="https://www.mturk.com/mturk/externalSubmit" method="POST"> -->
+<form action="https://workersandbox.mturk.com/mturk/externalSubmit" method="POST">
+	<p>Thanks! Please fill the following and submit:</p>
+	<div style="border-style: solid; border-width:3px; width:500px;">
+
+	<div style="margin: 5px;">
+			Notify this HIT? (I.e. Did a mistake / something went wrong)
+			<input type="radio" id="_hit_flag" name="_hit_flag" value="Yes">Yes
+			<input type="radio" id="_hit_flag" name="_hit_flag" value="No">No 
+	</div> 
+
+	<div style="margin-left:5px;">How easy was this HIT (0 to 10): ( <input type="text" id="_gui_rating" name="_gui_rating" value="" size="2"> ) / 10</div>
+	<div style="margin: 5px;">Comments: <input type="text" id="_hit_comment" name="_hit_comment" style="width:100%" value=""></div>
+
+	<input type="hidden" id="_hit_id" name="_hit_id" value="">
+	<!-- Why are there two assignment id fields... -->
+	<input type="hidden" id="assignmentId" name="assignmentId" value="">
+	<input type="hidden" id="_assignment_id" name="_assignment_id" value="">
+	<input type="hidden" id="_worker_id" name="_worker_id" value="">
+	<input type="hidden" id="_worker_exp" name="_worker_exp" value="">
+	<input type="hidden" id="_hit_it" name="_hit_it" value="">
+	<input type="hidden" id="_hit_rt" name="_hit_rt" value="">
+	<input type="hidden" id="_trials_results" name="_trials_results" value="">
+	<input type="hidden" id="_hit_depth_str" name="_hit_depth_str" value="">
+	<input type="hidden" id="_hit_reject_flag" name="_hit_reject_flag" value="">
+
+	
+	</div>
+	<div id="submit_div" style="display: none;">
+		<input type="submit" id="submitButton">
+	</div>
+</form>
+</div>
+
+
+
+
