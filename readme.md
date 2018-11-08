@@ -1,4 +1,5 @@
 # It's all Relative: Monocular 3D Human Pose Estimation from Weakly Supervised Data
+
 This repository recreates the experiments and plots from our BMVC 2018 paper. You can find the paper [here](https://arxiv.org/abs/1805.06880), along with additional data on our [project website](http://www.vision.caltech.edu/~mronchi/projects/RelativePose/).
 
 ### Overview
@@ -19,6 +20,10 @@ Here we show some sample outputs from our model on the LSP dataset. For each set
 
 ![LSP Results](./pics/lsp_results.jpg)
 
+
+### Video
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=YfClQN8iVreM" target="_blank">
+<img src="http://img.youtube.com/vi/fClQN8iVreM/0.jpg" alt="Watch here" width="480" height="360" border="10" /></a>
 
 ### Reference
 If you find our work useful in your research please cite our paper:  
